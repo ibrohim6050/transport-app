@@ -2,36 +2,32 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# If you have a root package.json (you do), install root deps first
+# 1) faqat freight-app package manifestlarni ko'chiramiz
 COPY package*.json ./
+
+# 2) prod/dev deps o'rnatamiz
 RUN npm ci
 
-# Copy the whole repo
+# 3) qolgan kodni ko'chiramiz
 COPY . .
 
-# Move into the API package
-WORKDIR /app/apps/api
-
-# If api has its own package.json (it does per your earlier info), install its deps
-RUN npm ci
-
-# Build & generate Prisma client
-RUN npm run build
+# 4) Prisma client va build
 RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npm run build
 
 # --- Runtime stage ---
 FROM node:18-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy built app and api package manifest
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package*.json ./
+# build natijalari va package.json
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
 
-# Install only prod deps for the api package
+# faqat prod deps
 RUN npm ci --omit=dev
 
-# App port
+# ilova porti
 ENV PORT=3001
 EXPOSE 3001
 
