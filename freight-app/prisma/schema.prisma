@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  DRIVER
+  ADMIN
+}
+
+enum OrderStatus {
+  OPEN
+  ASSIGNED
+  IN_TRANSIT
+  DELIVERED
+  CLOSED
+  CANCELLED
+}
+
+enum BidStatus {
+  PENDING
+  SELECTED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  rating    Float?
+
+  orders    Order[]  @relation("CustomerOrders")
+  bids      Bid[]
+  messages  Message[] @relation("UserMessages", references: [id], fields: [])
+  conversationsAsCustomer Conversation[] @relation("CustomerConversations")
+  conversationsAsDriver   Conversation[] @relation("DriverConversations")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  customer         User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  customerId       String
+  from             String
+  to               String
+  cargoType        String
+  weight           Float?
+  volume           Float?
+  status           OrderStatus @default(OPEN)
+  assignedDriver   User?       @relation(fields: [assignedDriverId], references: [id])
+  assignedDriverId String?
+
+  bids             Bid[]
+  conversations    Conversation[]
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model Bid {
+  id        String    @id @default(uuid())
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  driver    User      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId  String
+  price     Float
+  note      String?
+  status    BidStatus @default(PENDING)
+  createdAt DateTime  @default(now())
+
+  @@unique([orderId, driverId])
+}
+
+model Conversation {
+  id          String   @id @default(uuid())
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  customer    User     @relation("CustomerConversations", fields: [customerId], references: [id])
+  customerId  String
+  driver      User     @relation("DriverConversations", fields: [driverId], references: [id])
+  driverId    String
+  createdAt   DateTime @default(now())
+  lastMessageAt DateTime?
+
+  messages    Message[]
+  @@unique([orderId, customerId, driverId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  sender         User     @relation("UserMessages", fields: [senderId], references: [id])
+  senderId       String
+  text           String
+  timestamp      DateTime @default(now())
+}
